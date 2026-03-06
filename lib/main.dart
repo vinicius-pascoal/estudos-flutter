@@ -7,6 +7,7 @@ import 'app_theme.dart';
 
 void main() => runApp(const TodoApp());
 
+/// App raiz: aplica tema e inicia pela tela de Login (mock).
 class TodoApp extends StatelessWidget {
   const TodoApp({super.key});
 
@@ -18,11 +19,154 @@ class TodoApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const TodoPage(),
+
+      // Agora o app começa no Login (mock)
+      home: const LoginPage(),
     );
   }
 }
 
+/// ========= LOGIN (MOCK) =========
+/// Login falso: valida se usuário/senha batem com valores fixos e redireciona
+/// para a lista de tarefas (TodoPage).
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  // Credenciais mockadas
+  static const String _mockUser = 'admin';
+  static const String _mockPass = '1234';
+
+  final _userController = TextEditingController();
+  final _passController = TextEditingController();
+
+  String? _error;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _userController.dispose();
+    _passController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    final user = _userController.text.trim();
+    final pass = _passController.text;
+
+    setState(() {
+      _error = null;
+      _loading = true;
+    });
+
+    // Simula latência de rede
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+
+    final ok = (user == _mockUser && pass == _mockPass);
+
+    if (!mounted) return;
+
+    if (!ok) {
+      setState(() {
+        _error = 'Usuário ou senha inválidos. Tente: admin / 1234';
+        _loading = false;
+      });
+      return;
+    }
+
+    // Vai para a lista e remove o login da pilha (não volta no "back")
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const TodoPage()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Entrar', style: theme.textTheme.titleLarge),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _userController,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Usuário',
+                        hintText: 'Ex: admin',
+                      ),
+                      onChanged: (_) {
+                        if (_error != null) setState(() => _error = null);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _passController,
+                      obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        labelText: 'Senha',
+                        hintText: 'Ex: 1234',
+                      ),
+                      onSubmitted: (_) => _loading ? null : _login(),
+                      onChanged: (_) {
+                        if (_error != null) setState(() => _error = null);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    if (_error != null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          _error!,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: _loading ? null : _login,
+                        child: Text(_loading ? 'Entrando...' : 'Entrar'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Teste: admin / 1234',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ========= TODO MODEL =========
 class TodoItem {
   final String id;
   final String title;
@@ -51,6 +195,8 @@ class TodoItem {
   );
 }
 
+/// ========= TODO PAGE =========
+/// Página principal: lista de tarefas + persistência local + debug visual.
 class TodoPage extends StatefulWidget {
   const TodoPage({super.key});
 
@@ -64,11 +210,7 @@ class _TodoPageState extends State<TodoPage> {
 
   static const String _storageKey = 'todo_items_v1';
 
-  /// ✅ Flag do “Debug Visual”
-  ///
-  /// Quando true:
-  /// - desenhamos bordas leves em áreas importantes (input, botão, cards)
-  /// - isso ajuda a entender layout, paddings e limites de cada widget
+  // Flag do Debug Visual: desenha bordas para enxergar layout.
   bool _debugVisual = false;
 
   @override
@@ -145,10 +287,6 @@ class _TodoPageState extends State<TodoPage> {
     _saveTodosToLocalStorage();
   }
 
-  /// ✅ Abre o “Debug Visual Sheet”
-  ///
-  /// showModalBottomSheet cria um painel que sobe por baixo.
-  /// A vantagem é que ele é ótimo para “inspecionar” configurações sem sair da tela.
   void _openDebugSheet() {
     showModalBottomSheet(
       context: context,
@@ -158,8 +296,6 @@ class _TodoPageState extends State<TodoPage> {
         return _DebugThemeSheet(
           debugVisualEnabled: _debugVisual,
           onToggleDebugVisual: (value) {
-            // Quando o usuário liga/desliga no switch,
-            // atualizamos o state e a tela redesenha com/sem bordas.
             setState(() => _debugVisual = value);
           },
         );
@@ -179,13 +315,11 @@ class _TodoPageState extends State<TodoPage> {
       appBar: AppBar(
         title: const Text('Lista de Tarefas'),
         actions: [
-          // ✅ Botão do Debug Visual (ícone de “bug”)
           IconButton(
             tooltip: 'Debug Visual',
             icon: const Icon(Icons.bug_report_outlined),
             onPressed: _openDebugSheet,
           ),
-
           if (_items.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(right: 12),
@@ -207,8 +341,6 @@ class _TodoPageState extends State<TodoPage> {
             _AddTodoBar(
               controller: _controller,
               onAdd: _addTodo,
-
-              // ✅ repassa a flag para desenhar bordas de debug
               debugVisual: _debugVisual,
             ),
             const SizedBox(height: 12),
@@ -216,21 +348,19 @@ class _TodoPageState extends State<TodoPage> {
               child: _items.isEmpty
                   ? const _EmptyState()
                   : ListView.separated(
-                      itemCount: _items.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final item = _items[index];
-                        return _TodoCard(
-                          title: item.title,
-                          done: item.done,
-                          onToggle: () => _toggleDone(item.id),
-                          onDelete: () => _removeTodo(item.id),
-
-                          // ✅ repassa a flag para desenhar bordas de debug
-                          debugVisual: _debugVisual,
-                        );
-                      },
-                    ),
+                itemCount: _items.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  return _TodoCard(
+                    title: item.title,
+                    done: item.done,
+                    onToggle: () => _toggleDone(item.id),
+                    onDelete: () => _removeTodo(item.id),
+                    debugVisual: _debugVisual,
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -242,8 +372,6 @@ class _TodoPageState extends State<TodoPage> {
 class _AddTodoBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onAdd;
-
-  /// ✅ Se true, mostra bordas para “enxergar” o layout
   final bool debugVisual;
 
   const _AddTodoBar({
@@ -255,27 +383,22 @@ class _AddTodoBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-
-    // Cor de borda de debug (bem discreta).
     final debugBorder = Border.all(
       width: 1,
       color: scheme.primary.withOpacity(0.35),
     );
 
     return DecoratedBox(
-      // Bordão externa do bloco “Add bar”
       decoration: BoxDecoration(
         border: debugVisual ? debugBorder : null,
         borderRadius: BorderRadius.circular(AppTheme.radius),
       ),
       child: Padding(
-        // Um padding leve só para a borda não “colar” no conteúdo
         padding: EdgeInsets.all(debugVisual ? 6 : 0),
         child: Row(
           children: [
             Expanded(
               child: DecoratedBox(
-                // Borda de debug do TextField
                 decoration: BoxDecoration(
                   border: debugVisual ? debugBorder : null,
                   borderRadius: BorderRadius.circular(AppTheme.radius),
@@ -291,14 +414,16 @@ class _AddTodoBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             DecoratedBox(
-              // Borda de debug do botão
               decoration: BoxDecoration(
                 border: debugVisual ? debugBorder : null,
                 borderRadius: BorderRadius.circular(AppTheme.radius),
               ),
               child: SizedBox(
                 height: 52,
-                child: FilledButton(onPressed: onAdd, child: const Text('Add')),
+                child: FilledButton(
+                  onPressed: onAdd,
+                  child: const Text('Add'),
+                ),
               ),
             ),
           ],
@@ -313,8 +438,6 @@ class _TodoCard extends StatelessWidget {
   final bool done;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
-
-  /// ✅ Se true, mostra bordas para “enxergar” o layout
   final bool debugVisual;
 
   const _TodoCard({
@@ -332,10 +455,6 @@ class _TodoCard extends StatelessWidget {
 
     final baseStyle = theme.textTheme.titleMedium;
 
-    // Estilo local (dinâmico) baseado em "done".
-    // Esse é um exemplo de onde faz sentido sobrescrever o tema:
-    // - riscar quando concluída
-    // - alterar cor quando concluída
     final titleStyle = (baseStyle ?? const TextStyle()).copyWith(
       decoration: done ? TextDecoration.lineThrough : null,
       color: done ? scheme.onSurfaceVariant : scheme.onSurface,
@@ -347,7 +466,6 @@ class _TodoCard extends StatelessWidget {
     );
 
     return DecoratedBox(
-      // Borda de debug do Card inteiro
       decoration: BoxDecoration(
         border: debugVisual ? debugBorder : null,
         borderRadius: BorderRadius.circular(AppTheme.radius),
@@ -356,7 +474,10 @@ class _TodoCard extends StatelessWidget {
         padding: EdgeInsets.all(debugVisual ? 4 : 0),
         child: Card(
           child: ListTile(
-            leading: Checkbox(value: done, onChanged: (_) => onToggle()),
+            leading: Checkbox(
+              value: done,
+              onChanged: (_) => onToggle(),
+            ),
             title: Text(title, style: titleStyle),
             trailing: IconButton(
               tooltip: 'Remover',
@@ -388,7 +509,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// ✅ Bottom sheet do Debug Visual
+/// Bottom sheet do Debug Visual.
 ///
 /// Ele tem duas funções:
 /// 1) Explicar “o que vem do Theme” vs “o que é estilo local”
@@ -422,8 +543,6 @@ class _DebugThemeSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Switch que liga/desliga o modo visual
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Mostrar bordas de debug'),
@@ -433,20 +552,10 @@ class _DebugThemeSheet extends StatelessWidget {
               value: debugVisualEnabled,
               onChanged: onToggleDebugVisual,
             ),
-
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
-
-            Text(
-              '1) Estilos Globais (ThemeData)',
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Vêm de lib/app_theme.dart e afetam o app inteiro:',
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text('Estilos Globais (ThemeData)', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             _Bullet('Cores: ColorScheme.fromSeed(seedColor: indigo)'),
             _Bullet('Textos: textTheme (titleLarge/titleMedium/bodyMedium)'),
@@ -455,7 +564,6 @@ class _DebugThemeSheet extends StatelessWidget {
             _Bullet('Cards: cardTheme (shape/elevation)'),
             _Bullet('ListTile: listTileTheme (padding)'),
             const SizedBox(height: 12),
-
             Text('Cores (ColorScheme)', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Wrap(
@@ -484,71 +592,31 @@ class _DebugThemeSheet extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 12),
-
             Text(
-              '2) Estilos Locais (sobrescrevem o Theme)',
+              'Estilos Locais (sobrescrevem o Theme)',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
+            _Bullet('No app, o título da tarefa muda com "done": risca + muda cor.'),
+            const SizedBox(height: 10),
             Text(
-              'No app, o principal estilo local é o título da tarefa, que muda com o estado done:',
-              style: theme.textTheme.bodyMedium,
+              'Exemplo pendente',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: scheme.onSurface,
+                decoration: null,
+              ),
             ),
-            const SizedBox(height: 8),
-
-            // Demonstração visual do estilo local “done vs pending”
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '• Pendente: usa titleMedium do tema',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Exemplo de tarefa pendente',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: scheme.onSurface,
-                    decoration: null,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  '• Concluída: aplica lineThrough + cor onSurfaceVariant',
-                  style: theme.textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Exemplo de tarefa concluída',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    decoration: TextDecoration.lineThrough,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-            const Divider(),
-            const SizedBox(height: 12),
-
+            const SizedBox(height: 10),
             Text(
-              '3) “Onde isso aparece no código?”',
-              style: theme.textTheme.titleMedium,
+              'Exemplo concluído',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                decoration: TextDecoration.lineThrough,
+              ),
             ),
-            const SizedBox(height: 8),
-            _Bullet('Theme global: AppTheme.light()/dark() em MaterialApp'),
-            _Bullet(
-              'Leitura do tema: Theme.of(context) e theme.colorScheme/textTheme',
-            ),
-            _Bullet(
-              'Estilo local: titleStyle no _TodoCard (done risca o texto)',
-            ),
-            _Bullet('Debug visual: bordas controladas pela flag _debugVisual'),
           ],
         ),
       ),
